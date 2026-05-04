@@ -3,23 +3,28 @@ const Budget      = require('../models/Budget')
 const Category    = require('../models/Category')
 const Transaction = require('../models/Transaction')
 const AppError    = require('../utils/AppError')
+const { toObjectId } = require('../utils/sanitize')
 
 const list = async (userId, year, month) => {
-    const budgets = await Budget.find({ userId, year, month })
+    const safeUserId = toObjectId(userId, 'userId')
+
+    const budgets = await Budget.find({ userId: safeUserId, year, month })
         .populate('categoryId', 'name color icon')
         .lean()
 
-    // Attach actual spending for each budget
     const start = new Date(year, month - 1, 1)
     const end   = new Date(year, month, 0, 23, 59, 59, 999)
 
     return Promise.all(
         budgets.map(async (b) => {
+            // Cast categoryId to ObjectId before using in aggregate $match
+            const safeCatId = new mongoose.Types.ObjectId(b.categoryId._id.toString())
+
             const [agg] = await Transaction.aggregate([
                 {
                     $match: {
-                        userId:     new mongoose.Types.ObjectId(userId),
-                        categoryId: b.categoryId._id,
+                        userId:     safeUserId,
+                        categoryId: safeCatId,
                         type:       'expense',
                         date:       { $gte: start, $lte: end },
                     },
@@ -29,11 +34,11 @@ const list = async (userId, year, month) => {
             const spent = agg?.total || 0
             return {
                 ...b,
-                id:             b._id,
+                id:             b._id.toString(),
+                category_id:    b.categoryId._id.toString(),
                 category_name:  b.categoryId.name,
                 category_color: b.categoryId.color,
                 category_icon:  b.categoryId.icon,
-                category_id:    b.categoryId._id,
                 spent,
                 remaining: b.amount - spent,
             }
@@ -42,29 +47,29 @@ const list = async (userId, year, month) => {
 }
 
 const upsert = async (userId, { category_id, amount, year, month }) => {
-    if (!mongoose.isValidObjectId(category_id)) {
-        throw new AppError('Invalid category ID', 400, 'INVALID_ID')
-    }
+    const safeUserId = toObjectId(userId, 'userId')
+    const safeCatId  = toObjectId(category_id, 'category_id')
 
     const cat = await Category.findOne({
-        _id: category_id,
-        $or: [{ isDefault: true }, { userId }],
+        _id: safeCatId,
+        $or: [{ isDefault: true }, { userId: safeUserId }],
     })
     if (!cat) throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND')
 
     await Budget.findOneAndUpdate(
-        { userId, categoryId: category_id, year, month },
+        { userId: safeUserId, categoryId: safeCatId, year, month },
         { amount },
         { upsert: true, new: true }
     )
 
     const all = await list(userId, year, month)
-    return all.find((b) => b.category_id.toString() === category_id.toString())
+    return all.find((b) => b.category_id === safeCatId.toString())
 }
 
 const remove = async (userId, id) => {
-    if (!mongoose.isValidObjectId(id)) throw new AppError('Invalid ID', 400, 'INVALID_ID')
-    const result = await Budget.deleteOne({ _id: id, userId })
+    const safeId     = toObjectId(id, 'budget id')
+    const safeUserId = toObjectId(userId, 'userId')
+    const result = await Budget.deleteOne({ _id: safeId, userId: safeUserId })
     if (result.deletedCount === 0) throw new AppError('Budget not found', 404, 'NOT_FOUND')
 }
 

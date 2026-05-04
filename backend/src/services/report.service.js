@@ -1,16 +1,18 @@
-const mongoose = require('mongoose')
 const Transaction = require('../models/Transaction')
+const { toObjectId, toSafeString } = require('../utils/sanitize')
 
 const getMonthlySummary = async (userId, year) => {
-    const uid = new mongoose.Types.ObjectId(userId)
+    const uid = toObjectId(userId, 'userId')
+    // year comes from parseInt in the controller — already a safe integer
+    const safeYear = parseInt(year, 10)
 
     const rows = await Transaction.aggregate([
         {
             $match: {
                 userId: uid,
                 date: {
-                    $gte: new Date(year, 0, 1),
-                    $lte: new Date(year, 11, 31, 23, 59, 59, 999),
+                    $gte: new Date(safeYear, 0, 1),
+                    $lte: new Date(safeYear, 11, 31, 23, 59, 59, 999),
                 },
             },
         },
@@ -24,13 +26,12 @@ const getMonthlySummary = async (userId, year) => {
         { $sort: { '_id.month': 1 } },
     ])
 
-    // Pivot into monthly objects
     const months = {}
     for (const r of rows) {
-        const key = `${year}-${String(r._id.month).padStart(2, '0')}`
+        const key = `${safeYear}-${String(r._id.month).padStart(2, '0')}`
         if (!months[key]) months[key] = { month: key, income: 0, expense: 0, incomeCount: 0, expenseCount: 0 }
-        months[key][r._id.type]              = r.total
-        months[key][`${r._id.type}Count`]    = r.count
+        months[key][r._id.type]           = r.total
+        months[key][`${r._id.type}Count`] = r.count
     }
 
     return Object.values(months).map((m) => ({
@@ -41,13 +42,18 @@ const getMonthlySummary = async (userId, year) => {
 }
 
 const exportCsv = async (userId, startDate, endDate) => {
-    const uid = new mongoose.Types.ObjectId(userId)
+    const uid = toObjectId(userId, 'userId')
+
+    // Sanitize date strings — only allow YYYY-MM-DD format
+    const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+    const safeStart = toSafeString(startDate, 10)
+    const safeEnd   = toSafeString(endDate, 10)
 
     const filter = { userId: uid }
-    if (startDate || endDate) {
+    if (safeStart || safeEnd) {
         filter.date = {}
-        if (startDate) filter.date.$gte = new Date(startDate)
-        if (endDate)   filter.date.$lte = new Date(endDate + 'T23:59:59.999Z')
+        if (safeStart && ISO_DATE.test(safeStart)) filter.date.$gte = new Date(safeStart)
+        if (safeEnd   && ISO_DATE.test(safeEnd))   filter.date.$lte = new Date(safeEnd + 'T23:59:59.999Z')
     }
 
     const rows = await Transaction.find(filter)

@@ -1,8 +1,9 @@
 const mongoose = require('mongoose')
 const Transaction = require('../models/Transaction')
 const Budget      = require('../models/Budget')
+const { toObjectId } = require('../utils/sanitize')
 
-// Rule-based categorization 
+// Rule-based categorization
 
 const KEYWORD_MAP = [
     { keywords: ['salary', 'payroll', 'wage', 'paycheck'],                    category: 'Salary',        type: 'income'  },
@@ -41,7 +42,8 @@ const categorize = (description) => {
 
 const getInsights = async (userId) => {
     const insights = []
-    const uid = new mongoose.Types.ObjectId(userId)
+    // Cast userId to ObjectId before any query — prevents user-controlled-source alerts
+    const uid = toObjectId(userId, 'userId')
 
     const now       = new Date()
     const thisYear  = now.getFullYear()
@@ -181,7 +183,7 @@ const getInsights = async (userId) => {
 // Budget suggestions (50/30/20 rule)
 
 const getBudgetSuggestions = async (userId) => {
-    const uid = new mongoose.Types.ObjectId(userId)
+    const uid = toObjectId(userId, 'userId')
 
     const rows = await Transaction.aggregate([
         { $match: { userId: uid, type: 'income' } },

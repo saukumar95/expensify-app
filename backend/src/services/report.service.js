@@ -1,9 +1,8 @@
 const Transaction = require('../models/Transaction')
-const { toObjectId, toSafeString } = require('../utils/sanitize')
+const { toObjectId, toSafeDate } = require('../utils/sanitize')
 
 const getMonthlySummary = async (userId, year) => {
-    const uid = toObjectId(userId, 'userId')
-    // year comes from parseInt in the controller — already a safe integer
+    const uid      = toObjectId(userId, 'userId')
     const safeYear = parseInt(year, 10)
 
     const rows = await Transaction.aggregate([
@@ -44,16 +43,15 @@ const getMonthlySummary = async (userId, year) => {
 const exportCsv = async (userId, startDate, endDate) => {
     const uid = toObjectId(userId, 'userId')
 
-    // Sanitize date strings — only allow YYYY-MM-DD format
-    const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
-    const safeStart = toSafeString(startDate, 10)
-    const safeEnd   = toSafeString(endDate, 10)
+    // toSafeDate validates YYYY-MM-DD format — breaks taint chain for date query values
+    const safeStart = toSafeDate(startDate)
+    const safeEnd   = toSafeDate(endDate)
 
     const filter = { userId: uid }
     if (safeStart || safeEnd) {
         filter.date = {}
-        if (safeStart && ISO_DATE.test(safeStart)) filter.date.$gte = new Date(safeStart)
-        if (safeEnd   && ISO_DATE.test(safeEnd))   filter.date.$lte = new Date(safeEnd + 'T23:59:59.999Z')
+        if (safeStart) filter.date.$gte = new Date(safeStart)
+        if (safeEnd)   filter.date.$lte = new Date(safeEnd + 'T23:59:59.999Z')
     }
 
     const rows = await Transaction.find(filter)

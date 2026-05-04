@@ -1,7 +1,7 @@
 const Category    = require('../models/Category')
 const Transaction = require('../models/Transaction')
 const AppError    = require('../utils/AppError')
-const { toObjectId, toSafeString, toEnum } = require('../utils/sanitize')
+const { toObjectId, toSafeString, toEnum, toSafeDate } = require('../utils/sanitize')
 
 const list = async (userId) => {
     const safeUserId = toObjectId(userId, 'userId')

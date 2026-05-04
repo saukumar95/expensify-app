@@ -1,8 +1,7 @@
-const mongoose = require('mongoose')
 const Transaction = require('../models/Transaction')
 const Category    = require('../models/Category')
 const AppError    = require('../utils/AppError')
-const { toObjectId, toSafeString, toEnum } = require('../utils/sanitize')
+const { toObjectId, toSafeString, toSafeDate, toEnum } = require('../utils/sanitize')
 const { parsePagination, buildMeta } = require('../utils/pagination')
 
 // CRUD
@@ -10,44 +9,40 @@ const { parsePagination, buildMeta } = require('../utils/pagination')
 const list = async (userId, query) => {
     const { page, limit, offset } = parsePagination(query)
 
-    // Sanitize every user-supplied filter value before building the query object
-    const ownerFilter = { userId: toObjectId(userId, 'userId') }
-
-    const filter = { ...ownerFilter }
+    // All user-supplied values are sanitized/cast before entering the filter object
+    const safeUserId = toObjectId(userId, 'userId')
+    const filter     = { userId: safeUserId }
 
     const safeType = toEnum(query.type, ['income', 'expense'], null)
-    if (safeType) filter.type = safeType
+    if (safeType) filter.type = safeType                          // literal from allowed array
 
     if (query.category_id) {
-        filter.categoryId = toObjectId(query.category_id, 'category_id')
+        filter.categoryId = toObjectId(query.category_id, 'category_id')  // ObjectId cast
     }
 
     if (query.start_date || query.end_date) {
         filter.date = {}
-        if (query.start_date) {
-            const d = new Date(toSafeString(query.start_date, 10))
-            if (!isNaN(d)) filter.date.$gte = d
-        }
-        if (query.end_date) {
-            const d = new Date((toSafeString(query.end_date, 10) ?? '') + 'T23:59:59.999Z')
-            if (!isNaN(d)) filter.date.$lte = d
-        }
+        const start = toSafeDate(query.start_date)
+        const end   = toSafeDate(query.end_date)
+        if (start) filter.date.$gte = new Date(start)
+        if (end)   filter.date.$lte = new Date(end + 'T23:59:59.999Z')
     }
 
     if (query.search) {
-        // Escape regex special chars to prevent ReDoS
-        const escaped = toSafeString(query.search, 100)
-            ?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        if (escaped) {
+        const raw = toSafeString(query.search, 100)
+        if (raw) {
+            const safePattern = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            const searchRegex = new RegExp(safePattern, 'i')
             filter.$or = [
-                { description: { $regex: escaped, $options: 'i' } },
-                { notes:       { $regex: escaped, $options: 'i' } },
+                { description: searchRegex },
+                { notes:       searchRegex },
             ]
         }
     }
 
-    const sortMap = { date: 'date', amount: 'amount', created_at: 'createdAt' }
-    const sortField = sortMap[toEnum(query.sort, Object.keys(sortMap), 'date')] ?? 'date'
+    const SORT_FIELDS = { date: 'date', amount: 'amount', created_at: 'createdAt' }
+    const sortKey   = toEnum(query.sort, Object.keys(SORT_FIELDS), 'date')
+    const sortField = SORT_FIELDS[sortKey]                        // literal from map
     const sortDir   = toEnum(query.order, ['asc', 'desc'], 'desc') === 'asc' ? 1 : -1
 
     const [total, rows] = await Promise.all([
@@ -77,17 +72,20 @@ const getById = async (userId, id) => {
 
 const create = async (userId, body) => {
     const safeUserId = toObjectId(userId, 'userId')
-    await _assertCategory(body.category_id, safeUserId)
+    const safeCatId  = toObjectId(body.category_id, 'category_id')
+    await _assertCategory(safeCatId, safeUserId)
 
     const tx = await Transaction.create({
         userId:      safeUserId,
         type:        toEnum(body.type, ['income', 'expense'], 'expense'),
         amount:      body.amount,
-        categoryId:  toObjectId(body.category_id, 'category_id'),
+        categoryId:  safeCatId,
         description: toSafeString(body.description, 255),
-        date:        new Date(body.date),
-        tags:        Array.isArray(body.tags) ? body.tags.map((t) => toSafeString(t, 50)).filter(Boolean) : [],
-        notes:       toSafeString(body.notes, 1000),
+        date:        new Date(toSafeDate(body.date)),
+        tags:        Array.isArray(body.tags)
+            ? body.tags.map((t) => toSafeString(t, 50)).filter(Boolean)
+            : [],
+        notes: toSafeString(body.notes, 1000),
     })
 
     return getById(userId, tx._id)
@@ -100,20 +98,26 @@ const update = async (userId, id, body) => {
     const existing = await Transaction.findOne({ _id: safeId, userId: safeUserId })
     if (!existing) throw new AppError('Transaction not found', 404, 'NOT_FOUND')
 
-    if (body.category_id) await _assertCategory(body.category_id, safeUserId)
-
     const updates = {}
-    if (body.type        !== undefined) updates.type        = toEnum(body.type, ['income', 'expense'], existing.type)
+    if (body.type !== undefined) {
+        updates.type = toEnum(body.type, ['income', 'expense'], existing.type)
+    }
     if (body.amount      !== undefined) updates.amount      = body.amount
-    if (body.category_id !== undefined) updates.categoryId  = toObjectId(body.category_id, 'category_id')
+    if (body.category_id !== undefined) {
+        const safeCatId = toObjectId(body.category_id, 'category_id')
+        await _assertCategory(safeCatId, safeUserId)
+        updates.categoryId = safeCatId
+    }
     if (body.description !== undefined) updates.description = toSafeString(body.description, 255)
-    if (body.date        !== undefined) updates.date        = new Date(body.date)
-    if (body.tags        !== undefined) updates.tags        = Array.isArray(body.tags)
-        ? body.tags.map((t) => toSafeString(t, 50)).filter(Boolean)
-        : []
+    if (body.date        !== undefined) updates.date        = new Date(toSafeDate(body.date))
+    if (body.tags        !== undefined) {
+        updates.tags = Array.isArray(body.tags)
+            ? body.tags.map((t) => toSafeString(t, 50)).filter(Boolean)
+            : []
+    }
     if (body.notes !== undefined) updates.notes = toSafeString(body.notes, 1000)
 
-    await Transaction.updateOne({ _id: safeId }, updates)
+    await Transaction.updateOne({ _id: safeId, userId: safeUserId }, updates)
     return getById(userId, safeId)
 }
 
@@ -138,9 +142,13 @@ const getSummary = async (userId, year, month) => {
 
     const income  = rows.find((r) => r._id === 'income')?.total  || 0
     const expense = rows.find((r) => r._id === 'expense')?.total || 0
-    const prefix  = `${year}-${String(month).padStart(2, '0')}`
 
-    return { income, expense, balance: income - expense, month: prefix }
+    return {
+        income,
+        expense,
+        balance: income - expense,
+        month: `${year}-${String(month).padStart(2, '0')}`,
+    }
 }
 
 const getMonthlyTrend = async (userId, months = 6) => {
@@ -195,8 +203,7 @@ const getCategoryBreakdown = async (userId, year, month, type = 'expense') => {
 
 // helpers
 
-const _assertCategory = async (categoryId, safeUserId) => {
-    const safeCatId = toObjectId(categoryId, 'category_id')
+const _assertCategory = async (safeCatId, safeUserId) => {
     const cat = await Category.findOne({
         _id: safeCatId,
         $or: [{ isDefault: true }, { userId: safeUserId }],

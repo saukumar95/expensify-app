@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+coverage/
+
+# Jest temp files
+src/tests/setup/.mongo-uri.tmp

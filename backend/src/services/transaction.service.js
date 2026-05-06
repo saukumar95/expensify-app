@@ -102,7 +102,13 @@ const update = async (userId, id, body) => {
     if (body.type !== undefined) {
         updates.type = toEnum(body.type, ['income', 'expense'], existing.type)
     }
-    if (body.amount      !== undefined) updates.amount      = body.amount
+    if (body.amount !== undefined) {
+        const safeAmount = Number(body.amount)
+        if (!Number.isFinite(safeAmount)) {
+            throw new AppError('Invalid amount', 400, 'VALIDATION_ERROR')
+        }
+        updates.amount = safeAmount
+    }
     if (body.category_id !== undefined) {
         const safeCatId = toObjectId(body.category_id, 'category_id')
         await _assertCategory(safeCatId, safeUserId)

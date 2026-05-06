@@ -1,0 +1,87 @@
+.tx-form { display: flex; flex-direction: column; gap: 16px; }
+
+.type-toggle {
+    display: flex;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    gap: 3px;
+}
+
+.type-btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: background var(--transition), color var(--transition);
+}
+
+.type-btn--expense.type-btn--active { background: var(--danger);  color: #fff; }
+.type-btn--income.type-btn--active  { background: var(--success); color: #fff; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+
+.form-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.optional { font-weight: 400; color: var(--text-muted); }
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color var(--transition);
+    outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.form-group textarea { resize: vertical; min-height: 60px; }
+
+.desc-row { display: flex; gap: 8px; }
+.desc-row input { flex: 1; }
+
+.ai-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 9px 12px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--transition);
+}
+.ai-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.ai-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+@media (max-width: 480px) {
+    .form-row { grid-template-columns: 1fr; }
+}

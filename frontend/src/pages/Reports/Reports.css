@@ -1,0 +1,50 @@
+.reports-page { display: flex; flex-direction: column; gap: 20px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.page-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-actions select {
+    padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: var(--bg-secondary);
+    color: var(--text-primary); font-size: 13px; outline: none;
+}
+
+.totals-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.total-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    border-left: 4px solid transparent;
+}
+.total-card--income   { border-left-color: var(--success); }
+.total-card--expense  { border-left-color: var(--danger); }
+.total-card--positive { border-left-color: var(--accent); }
+.total-card--negative { border-left-color: var(--warning); }
+
+.total-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px; }
+.total-value { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+
+.chart-card, .table-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+}
+.chart-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; }
+
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table th { padding: 10px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); border-bottom: 1px solid var(--border); }
+.data-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg-tertiary); }
+.amount--income  { color: var(--success); font-weight: 600; }
+.amount--expense { color: var(--danger);  font-weight: 600; }
+
+.skeleton-chart { height: 300px; background: var(--bg-tertiary); border-radius: var(--radius); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+@media (max-width: 640px) { .totals-grid { grid-template-columns: 1fr; } }

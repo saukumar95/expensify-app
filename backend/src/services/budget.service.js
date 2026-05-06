@@ -5,15 +5,28 @@ const Transaction = require('../models/Transaction')
 const AppError    = require('../utils/AppError')
 const { toObjectId } = require('../utils/sanitize')
 
+const toSafeInt = (value, fieldName) => {
+    if (typeof value === 'object' || value === null) {
+        throw new AppError(`${fieldName} must be a number`, 400, 'VALIDATION_ERROR')
+    }
+    const n = Number(value)
+    if (!Number.isInteger(n)) {
+        throw new AppError(`${fieldName} must be a number`, 400, 'VALIDATION_ERROR')
+    }
+    return n
+}
+
 const list = async (userId, year, month) => {
     const safeUserId = toObjectId(userId, 'userId')
+    const safeYear   = toSafeInt(year, 'year')
+    const safeMonth  = toSafeInt(month, 'month')
 
-    const budgets = await Budget.find({ userId: safeUserId, year, month })
+    const budgets = await Budget.find({ userId: safeUserId, year: safeYear, month: safeMonth })
         .populate('categoryId', 'name color icon')
         .lean()
 
-    const start = new Date(year, month - 1, 1)
-    const end   = new Date(year, month, 0, 23, 59, 59, 999)
+    const start = new Date(safeYear, safeMonth - 1, 1)
+    const end   = new Date(safeYear, safeMonth, 0, 23, 59, 59, 999)
 
     return Promise.all(
         budgets.map(async (b) => {
@@ -49,6 +62,8 @@ const list = async (userId, year, month) => {
 const upsert = async (userId, { category_id, amount, year, month }) => {
     const safeUserId = toObjectId(userId, 'userId')
     const safeCatId  = toObjectId(category_id, 'category_id')
+    const safeYear   = toSafeInt(year, 'year')
+    const safeMonth  = toSafeInt(month, 'month')
 
     const cat = await Category.findOne({
         _id: safeCatId,
@@ -57,12 +72,12 @@ const upsert = async (userId, { category_id, amount, year, month }) => {
     if (!cat) throw new AppError('Category not found', 404, 'CATEGORY_NOT_FOUND')
 
     await Budget.findOneAndUpdate(
-        { userId: safeUserId, categoryId: safeCatId, year, month },
+        { userId: safeUserId, categoryId: safeCatId, year: safeYear, month: safeMonth },
         { amount },
         { upsert: true, new: true }
     )
 
-    const all = await list(userId, year, month)
+    const all = await list(userId, safeYear, safeMonth)
     return all.find((b) => b.category_id === safeCatId.toString())
 }
 
